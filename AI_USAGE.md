@@ -32,8 +32,13 @@ That is roughly an hour saved, and it went straight back into coverage: the `slo
 mid-flight assertions, the double-click test, and the reaper's multi-class case all exist because
 writing them was cheap. A thinner suite would have been the honest 4-hour outcome without it.
 
-**Second place:** it flagged that `next@15.5.4` — the version it had itself suggested — carried a
-published CVE, and I moved to `15.5.25`.
+**Second place: dependency hygiene.** It scaffolded `next@15.5.4`, which npm immediately flagged as
+carrying a published CVE. Rather than take the one-line bump and move on, I had it break the audit
+down by *which* advisories were reachable from a direct dependency, then took the whole set in one
+pass — Next 16.3.4, Vitest 3.2.7, tsx, pg, `@types/node`. `npm audit` now reports **0
+vulnerabilities**, and `npm run typecheck`, `npm run build`, `npm test` and `npm run demo:race` all
+pass on the upgraded stack. That is maybe fifteen minutes of work I would probably have skipped
+under a 4-hour clock on my own.
 
 ## Where I disagreed with it
 
@@ -81,7 +86,7 @@ Not by reading the diff and nodding. In order of how much I trust them:
 
 1. **`npm run demo:race`** — runs the brief's scenario plus three harder variants against the real
    database and asserts on each, exiting non-zero on any failure.
-2. **43 tests** against a separate database, including a 25-way simultaneous stampede on a 4-seat
+2. **44 tests** against a separate database, including a 25-way simultaneous stampede on a 4-seat
    class. Concurrency bugs do not reliably show up at 2 requests; they show up at 25.
 3. **Every test ends with `expectInvariantsHold()`**, which re-queries the whole database and
    checks six system-wide properties — not just what the test's own return values said. This is

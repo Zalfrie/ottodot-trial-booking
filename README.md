@@ -22,7 +22,7 @@ cp .env.example .env.local    # values already match docker-compose
 
 npm run db:reset              # schema + synthetic seed data
 npm run demo:race             # the whole point of the exercise, in one command
-npm run test                  # 43 tests
+npm run test                  # 44 tests
 npm run dev                   # http://localhost:3000
 ```
 
@@ -40,12 +40,19 @@ Then put the matching URLs in `.env.local` (Option B in `.env.example`) and run 
 
 The schema needs no extensions and no superuser — `gen_random_uuid()` is built into Postgres 13+.
 
-> Verified on Postgres 14.20 on Windows (Node 22.22). The `docker-compose.yml` pins
-> `postgres:16-alpine`; nothing in the schema is version-specific beyond Postgres 13.
+> **What I actually ran:** everything below was verified against a local **Postgres 14.20** on
+> Windows with Node 22.22, from a clean `git clone`. I had no Docker daemon on that machine, so
+> the `docker-compose.yml` (`postgres:16-alpine`) is written but unverified — it is the standard
+> single-service Postgres setup, and nothing in the schema is version-specific beyond Postgres 13.
+> If it gives you any trouble, the "Run without Docker" path above is the tested one.
 
 ---
 
 ## Prove it works
+
+Everything below also runs in CI on every push — against `postgres:16-alpine`, which is how the
+containerised path gets verified even though I could not run Docker locally. See
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) and the Actions tab.
 
 ### `npm run demo:race` — the required scenario, end to end
 
@@ -60,7 +67,7 @@ Resets the database and runs four acts against the real domain code, asserting a
 
 It exits non-zero if any assertion fails, so it doubles as a smoke test.
 
-### `npm run test` — 43 tests
+### `npm run test` — 44 tests
 
 ```
 tests/last-seat-race.test.ts   the required scenario, plus 25-way concurrency
@@ -252,6 +259,11 @@ The application catches the resulting `23505` and returns a friendly `409 DUPLIC
 the index is what guarantees it. A test fires eight identical "Book" requests simultaneously;
 exactly one row is created.
 
+One ordering detail worth naming: the duplicate check runs **before** the capacity check. A parent
+whose child is already confirmed on a class that has since filled up would otherwise be told "this
+class is full" — true, but useless, because their child has a seat. `DUPLICATE_BOOKING` is the
+answer that tells them something they can act on.
+
 ### Payment failure
 
 A declined card releases the seat and records the attempt **in the same transaction**, so a
@@ -351,7 +363,7 @@ src/lib/payments/gateway.ts       mock gateway behind a swappable interface
 src/app/api/…                     route handlers
 src/app/…                         parent flow, booking status, admin roster
 scripts/demo-last-seat-race.ts    the four-act demo
-tests/…                           43 tests
+tests/…                           44 tests
 ```
 
 ## Seed data

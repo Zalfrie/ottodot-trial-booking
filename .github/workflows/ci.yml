@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # The same Postgres major version as docker-compose.yml, so CI independently
+    # exercises the containerised path.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ottodot
+          POSTGRES_PASSWORD: ottodot_dev
+          POSTGRES_DB: ottodot_trial
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ottodot -d ottodot_trial"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://ottodot:ottodot_dev@127.0.0.1:5432/ottodot_trial
+      TEST_DATABASE_URL: postgresql://ottodot:ottodot_dev@127.0.0.1:5432/ottodot_trial_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # docker-compose creates this via db/docker-init; the Actions service
+      # container has no init hook, so create it here.
+      - name: Create the test database
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE ottodot_trial_test OWNER ottodot;'
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+      - name: Seed the application database
+        run: npm run db:reset
+
+      - name: Invariants hold on the seed data
+        run: npm run db:check
+
+      # The required scenario, plus the simultaneous and stampede variants.
+      # Exits non-zero on any failed assertion.
+      - name: Last-seat race demo
+        run: npm run demo:race
+
+      - name: Tests
+        run: npm test

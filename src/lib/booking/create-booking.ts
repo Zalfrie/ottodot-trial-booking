@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg'
 import { queryOne, withTransaction } from '@/lib/db'
 import { BookingError, isPgError, PG_UNIQUE_VIOLATION } from '@/lib/errors'
 import type { Booking } from './types'
@@ -68,6 +69,23 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
       throw new BookingError('INVALID_STATE', 'This trial class has already started')
     }
 
+    // Checked BEFORE capacity, so a parent whose child is already confirmed on a
+    // full class is told "already booked" rather than the confusing "class is
+    // full" - their child does have a seat. The unique index below is still what
+    // makes this true under concurrency; this only picks the better message.
+    const existingBooking = await findActiveBooking(
+      input.studentId,
+      input.trialClassId,
+      client,
+    )
+    if (existingBooking) {
+      throw new BookingError(
+        'DUPLICATE_BOOKING',
+        'This child already has an active booking for this class',
+        { existingBookingId: existingBooking.id, existingStatus: existingBooking.status },
+      )
+    }
+
     // Advisory only. Two parents can both pass this check for the same last
     // seat - that is the race the brief asks about, and it is settled at payment
     // time, not here.
@@ -103,15 +121,27 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
   })
 }
 
-export function findActiveBooking(
+/**
+ * The booking, if any, that currently blocks this child from booking this class.
+ *
+ * Pass `client` to read inside an open transaction; without it the shared pool
+ * is used. This is a *read* of a racy condition - the partial unique index is
+ * what actually enforces it.
+ */
+export async function findActiveBooking(
   studentId: string,
   trialClassId: string,
+  client?: PoolClient,
 ): Promise<Booking | undefined> {
-  return queryOne<Booking>(
-    `SELECT * FROM bookings
-      WHERE student_id = $1
-        AND trial_class_id = $2
-        AND status IN ('pending_payment', 'processing_payment', 'confirmed')`,
-    [studentId, trialClassId],
-  )
+  const sql = `SELECT * FROM bookings
+                WHERE student_id = $1
+                  AND trial_class_id = $2
+                  AND status IN ('pending_payment', 'processing_payment', 'confirmed')`
+  const params = [studentId, trialClassId]
+
+  if (client) {
+    const { rows } = await client.query<Booking>(sql, params)
+    return rows[0]
+  }
+  return queryOne<Booking>(sql, params)
 }

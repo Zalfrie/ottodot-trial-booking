@@ -21,6 +21,20 @@ describe('duplicate bookings', () => {
     await expectInvariantsHold()
   })
 
+  it('reports a duplicate, not CLASS_FULL, when the child is already on a full class', async () => {
+    // Zara is confirmed on "The Human Body", which is at 4/4. Telling her parent
+    // "this class is full" would be true but useless — the child already has a
+    // seat. So the duplicate check runs before the capacity check.
+    await expect(
+      createBooking({
+        studentId: SEED.students.zara,
+        trialClassId: SEED.classes.fullScience,
+      }),
+    ).rejects.toMatchObject({ code: 'DUPLICATE_BOOKING' })
+
+    await expectInvariantsHold()
+  })
+
   it('refuses a second booking while the first is still pending payment', async () => {
     const first = await createBooking({
       studentId: SEED.students.zara,
