@@ -340,9 +340,13 @@ truth.** Every invariant that matters is stated at least twice, and at least onc
   who may act, not what is correct.
 - Trials are paid up front. Free trials would remove payment but not the race.
 - Capacity is 4 for every class, but stored per class.
-- The mock gateway's outcome is caller-supplied (`success` / `failure` / `slow_success`). A real
-  one would use the idempotency key that is already threaded through `charge()`.
+- The mock gateway's outcome is caller-supplied (`success` / `failure` / `slow_success` /
+  `slow_failure`). A real one would use the idempotency key that is already threaded through
+  `charge()`.
 - Provider webhooks are out of scope; the charge is treated as synchronous.
+- Cancelling a **confirmed** booking returns the seat to the class but issues no refund — the
+  money side of cancellation is a policy question (how late, how much) I did not want to invent.
+  The seat accounting is the part that had to be right.
 - Times are `timestamptz`; the UI renders in the viewer's locale.
 
 ## Time spent
