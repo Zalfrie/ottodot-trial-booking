@@ -1,5 +1,7 @@
 # Ottodot — Trial Booking
 
+[![CI](https://github.com/Zalfrie/ottodot-trial-booking/actions/workflows/ci.yml/badge.svg)](https://github.com/Zalfrie/ottodot-trial-booking/actions/workflows/ci.yml)
+
 A working slice of trial-class booking, built around one question: **can two parents end up
 confirmed for the same last seat?**
 
