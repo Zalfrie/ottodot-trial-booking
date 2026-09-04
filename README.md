@@ -8,6 +8,8 @@ confirmed for the same last seat?**
 They cannot. Not under a scripted sequence, not under simultaneous requests, and not if someone
 bypasses the application and writes to the table directly.
 
+**Video walkthrough:** <!-- PASTE THE LINK HERE BEFORE SUBMITTING --> _(link to follow)_
+
 ---
 
 ## Getting started
