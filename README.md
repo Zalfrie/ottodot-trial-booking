@@ -24,7 +24,7 @@ cp .env.example .env.local    # values already match docker-compose
 
 npm run db:reset              # schema + synthetic seed data
 npm run demo:race             # the whole point of the exercise, in one command
-npm run test                  # 44 tests
+npm run test                  # 47 tests
 npm run dev                   # http://localhost:3000
 ```
 
@@ -69,13 +69,14 @@ Resets the database and runs four acts against the real domain code, asserting a
 
 It exits non-zero if any assertion fails, so it doubles as a smoke test.
 
-### `npm run test` — 44 tests
+### `npm run test` — 47 tests
 
 ```
 tests/last-seat-race.test.ts   the required scenario, plus 25-way concurrency
 tests/invariants.test.ts       duplicates, capacity, and the DB constraints themselves
 tests/payment.test.ts          failure, retry, double-click, cancellation
 tests/expire-holds.test.ts     the background reaper
+tests/reaper-race.test.ts      the reaper firing while a charge is in flight
 ```
 
 Tests run against `TEST_DATABASE_URL`, a **separate database**, so they never disturb what you are
@@ -149,10 +150,16 @@ Five tables, in `db/schema.sql`. The load-bearing parts:
                   ┌──────────────── class_full ──────────────► cancelled
                   │
 pending_payment ──┴─ seat won ─► processing_payment ─┬─ paid ────► confirmed
-      │                                              └─ declined ► payment_failed ──┐
-      │                                                                 ▲           │
-      └── abandoned (job) ─► expired                                    └── retry ──┘
+      │                                    │         └─ declined ► payment_failed ──┐
+      │                                    │                            ▲           │
+      │                     hold reaped by the job (rare) ─┐            └── retry ──┘
+      └── abandoned (job) ────────────────────────────────►└─────────► expired
 ```
+
+Reaching `expired` from `processing_payment` is the `seat_expired` outcome — the reaper won a race
+against an unusually slow charge. It is the only path that can leave a successful payment attached
+to an unconfirmed booking, which is why it is reported distinctly instead of being folded into
+`payment_failed`.
 
 ### API
 
@@ -169,9 +176,12 @@ pending_payment ──┴─ seat won ─► processing_payment ─┬─ paid �
 | `POST` | `/api/admin/expire-holds` | Run the reaper on demand |
 
 `POST /api/bookings/:id/payment` returns **200** with an `outcome` of `confirmed`,
-`payment_failed` or `class_full`. Losing the race is a legitimate business outcome of a
-well-formed request, not a client error — the UI branches on `outcome`, and errors
+`payment_failed`, `class_full` or `seat_expired`. Losing the race is a legitimate business outcome
+of a well-formed request, not a client error — the UI branches on `outcome`, and errors
 (`{ error: { code, message } }`) stay reserved for genuinely bad requests.
+
+`seat_expired` is the rare one: the background job reclaimed the hold while the card was being
+charged. See *The reaper racing an in-flight charge* below.
 
 ---
 
@@ -276,6 +286,40 @@ unique index — so the parent can retry on the same booking, and each attempt i
 If the class filled up while they were finding another card, the retry is refused with
 `class_full` and, again, no charge.
 
+### The reaper racing an in-flight charge
+
+Splitting the payment into two transactions is what keeps a DB lock off the network call — but it
+also means the booking row sits **unlocked** for the whole duration of the charge. The reaper is
+entitled to reclaim a hold in exactly that window.
+
+I found this by writing the test rather than by reading the code, and it was real on both paths:
+
+- **Declined charge:** TX2 released a seat the booking no longer held, so `seats_taken` dropped
+  below the number of bookings actually holding seats. It committed cleanly — a silent drift.
+- **Successful charge:** TX2 tried to mark a seat-less booking `confirmed`, which the
+  `seat_held_at` CHECK constraint rejected. The constraint did its job and refused the write, but
+  the caller got a 500 with the card already charged.
+
+Both are fixed by guarding every update in TX2 on the booking still being `processing_payment`:
+
+```sql
+UPDATE bookings SET status = 'confirmed', updated_at = now()
+ WHERE id = $1 AND status = 'processing_payment'
+RETURNING *
+```
+
+Zero rows means the hold is no longer ours. The seat counter is then left alone, and the payment
+attempt is still recorded — that row is what a refund gets issued against. The caller gets
+`outcome: 'seat_expired'`.
+
+Two things worth saying about this. First, it is narrow: it needs a provider slower than
+`SEAT_HOLD_TIMEOUT_SECONDS` (5 minutes by default), which is why the timeout is minutes rather
+than seconds. Second, the CHECK constraint is what turned the more dangerous half of this from
+silent corruption into a loud failure — which is the argument for putting invariants in the
+database, made by the code rather than by me.
+
+`tests/reaper-race.test.ts` drives the two into each other deliberately.
+
 ### Where each check lives
 
 | Layer | Checks | Why there |
@@ -330,8 +374,11 @@ Ordered by how badly I would want to be paged:
 3. **Bookings stuck in `processing_payment`** — should be near zero and short-lived. A rising
    count means checkouts are dying mid-charge.
 4. **Seats reclaimed by the reaper per run** — should be ~0. Anything else means crashes.
-5. **Payment decline rate**, split by reason, to tell "our bug" from "their bank".
-6. **Time from `pending_payment` to a terminal state** — the checkout funnel, and an early warning
+5. **`seat_expired` outcomes with a *succeeded* payment attempt** — each one is a parent charged
+   for a seat they did not get, so each one is a refund somebody has to issue. This should be zero;
+   a single occurrence is worth investigating, because it means a charge outran the hold timeout.
+6. **Payment decline rate**, split by reason, to tell "our bug" from "their bank".
+7. **Time from `pending_payment` to a terminal state** — the checkout funnel, and an early warning
    that the provider is slow.
 7. **Rosters at class start** — the business outcome. Any class over 4 is a sev-1 by definition.
 
@@ -365,7 +412,7 @@ src/lib/payments/gateway.ts       mock gateway behind a swappable interface
 src/app/api/…                     route handlers
 src/app/…                         parent flow, booking status, admin roster
 scripts/demo-last-seat-race.ts    the four-act demo
-tests/…                           44 tests
+tests/…                           47 tests
 ```
 
 ## Seed data

@@ -86,11 +86,21 @@ Not by reading the diff and nodding. In order of how much I trust them:
 
 1. **`npm run demo:race`** — runs the brief's scenario plus three harder variants against the real
    database and asserts on each, exiting non-zero on any failure.
-2. **44 tests** against a separate database, including a 25-way simultaneous stampede on a 4-seat
+2. **47 tests** against a separate database, including a 25-way simultaneous stampede on a 4-seat
    class. Concurrency bugs do not reliably show up at 2 requests; they show up at 25.
 3. **Every test ends with `expectInvariantsHold()`**, which re-queries the whole database and
    checks six system-wide properties — not just what the test's own return values said. This is
    what catches seat-counter drift, which a per-test assertion would miss entirely.
+
+   This is the one that actually earned its keep. Late on, I went looking for holes by asking what
+   could touch a booking *between* the two payment transactions — the window where the row sits
+   unlocked while the provider is called. The answer was the reaper. I wrote
+   `tests/reaper-race.test.ts` to drive them into each other before touching the code, and both
+   paths failed: a declined charge released a seat it no longer owned (silent counter drift, and
+   it committed), and a successful one tried to confirm a seat-less booking (caught by the CHECK
+   constraint, but surfaced as a 500 with the card already charged). Fixed by guarding TX2 on the
+   booking still being `processing_payment`. Writing the test first is what made it a finding
+   rather than a plausible-sounding paragraph in this file.
 4. **Two tests bypass the application** and write to the tables directly, asserting the `CHECK`
    constraint and the unique index reject overbooking and duplicates. If those pass, the
    invariants hold no matter what any future code path does.

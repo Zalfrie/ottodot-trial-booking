@@ -148,7 +148,7 @@ export default function BookTrialPage() {
         open a second tab and lose the race on purpose.
       </p>
       <div className="actions" style={{ marginTop: 8 }}>
-        {(['success', 'failure', 'slow_success'] as const).map((option) => (
+        {(['success', 'failure', 'slow_success', 'slow_failure'] as const).map((option) => (
           <button
             key={option}
             type="button"

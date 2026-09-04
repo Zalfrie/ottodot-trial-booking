@@ -143,6 +143,14 @@ export default function BookingPage({
         </div>
       )}
 
+      {outcome === 'seat_expired' && (
+        <div className="error">
+          <strong>This checkout took too long and the seat was released.</strong> If the payment
+          below shows as succeeded, it will be refunded &mdash; the booking was never confirmed, so
+          the seat went back to the class.
+        </div>
+      )}
+
       <div className="card">
         <div className="row">
           <div>

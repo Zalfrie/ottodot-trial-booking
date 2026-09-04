@@ -9,6 +9,13 @@ export type PayBookingResult =
   | { outcome: 'confirmed'; booking: Booking; payment: PaymentAttempt }
   | { outcome: 'payment_failed'; booking: Booking; payment: PaymentAttempt }
   | { outcome: 'class_full'; booking: Booking }
+  /**
+   * The seat hold was reclaimed by the background job while the card was being
+   * charged. Rare, and only reachable if the provider takes longer than
+   * SEAT_HOLD_TIMEOUT_SECONDS. If `payment.status` is 'succeeded' the parent has
+   * been charged for a seat they no longer hold, and that needs a refund.
+   */
+  | { outcome: 'seat_expired'; booking: Booking; payment: PaymentAttempt }
 
 export function parsePaymentSimulation(body: unknown): PaymentSimulation {
   if (body === null || body === undefined) return 'success'
@@ -171,29 +178,52 @@ async function settlePayment(
   result: Awaited<ReturnType<typeof charge>>,
 ): Promise<PayBookingResult> {
   return withTransaction(async (client) => {
+    // Every update here is guarded on the booking STILL being the one this
+    // charge reserved a seat for.
+    //
+    // TX1 released its connection before the provider call, so the row was
+    // unlocked for the whole charge. The reaper is entitled to reclaim a hold in
+    // that window, and if it does, this transaction no longer owns a seat.
+    // Without the guard the decline path releases a seat belonging to somebody
+    // else - a silent counter drift that commits cleanly.
+    const attempt = {
+      bookingId: booking.id,
+      amountCents,
+      currency,
+      ...(result.status === 'succeeded'
+        ? { status: 'succeeded' as const, providerRef: result.providerRef }
+        : {
+            status: 'failed' as const,
+            providerRef: result.providerRef,
+            failureReason: result.failureReason,
+          }),
+    }
+
     if (result.status === 'succeeded') {
       const { rows } = await client.query<Booking>(
         `UPDATE bookings
             SET status = 'confirmed',
                 updated_at = now()
           WHERE id = $1
+            AND status = 'processing_payment'
           RETURNING *`,
         [booking.id],
       )
-      const payment = await recordAttempt(client, {
-        bookingId: booking.id,
-        amountCents,
-        currency,
-        status: 'succeeded',
-        providerRef: result.providerRef,
-      })
-      return { outcome: 'confirmed', booking: rows[0]!, payment }
+
+      if (!rows[0]) {
+        // The hold was reclaimed while the card was being charged. The parent
+        // HAS paid, so the attempt is still recorded - that row is what a refund
+        // is issued against. What we must not do is mark a booking confirmed
+        // when it is holding no seat.
+        return seatLost(client, booking.id, attempt)
+      }
+
+      const payment = await recordAttempt(client, attempt)
+      return { outcome: 'confirmed', booking: rows[0], payment }
     }
 
     // Declined. Give the seat back in the same transaction that records the
     // failure, so a failed payment can never leave the child holding a seat.
-    await releaseSeat(client, booking.trial_class_id)
-
     const { rows } = await client.query<Booking>(
       `UPDATE bookings
           SET status = 'payment_failed',
@@ -201,19 +231,38 @@ async function settlePayment(
               cancellation_reason = 'payment_failed',
               updated_at = now()
         WHERE id = $1
+          AND status = 'processing_payment'
         RETURNING *`,
       [booking.id],
     )
-    const payment = await recordAttempt(client, {
-      bookingId: booking.id,
-      amountCents,
-      currency,
-      status: 'failed',
-      providerRef: result.providerRef,
-      failureReason: result.failureReason,
-    })
-    return { outcome: 'payment_failed', booking: rows[0]!, payment }
+
+    if (!rows[0]) {
+      // Reclaimed mid-charge again - but nothing was taken, so there is nothing
+      // to refund. Crucially, do NOT release a seat this booking no longer holds.
+      return seatLost(client, booking.id, attempt)
+    }
+
+    await releaseSeat(client, booking.trial_class_id)
+
+    const payment = await recordAttempt(client, attempt)
+    return { outcome: 'payment_failed', booking: rows[0], payment }
   })
+}
+
+/**
+ * The booking stopped being ours mid-charge (the reaper reclaimed the hold).
+ *
+ * Records the attempt for the audit trail and reports the booking exactly as it
+ * now stands, without touching the seat counter.
+ */
+async function seatLost(
+  client: PoolClient,
+  bookingId: string,
+  attempt: Parameters<typeof recordAttempt>[1],
+): Promise<PayBookingResult> {
+  const payment = await recordAttempt(client, attempt)
+  const { rows } = await client.query<Booking>('SELECT * FROM bookings WHERE id = $1', [bookingId])
+  return { outcome: 'seat_expired', booking: rows[0]!, payment }
 }
 
 async function recordAttempt(

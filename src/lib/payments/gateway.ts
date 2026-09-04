@@ -9,12 +9,13 @@
  * script and a live click-through all produce the exact case being shown.
  */
 
-export type PaymentSimulation = 'success' | 'failure' | 'slow_success'
+export type PaymentSimulation = 'success' | 'failure' | 'slow_success' | 'slow_failure'
 
 export const PAYMENT_SIMULATIONS: readonly PaymentSimulation[] = [
   'success',
   'failure',
   'slow_success',
+  'slow_failure',
 ]
 
 export function isPaymentSimulation(value: unknown): value is PaymentSimulation {
@@ -43,13 +44,14 @@ export const SLOW_PAYMENT_DELAY_MS = 1_500
 export async function charge(request: ChargeRequest): Promise<PaymentResult> {
   const providerRef = `mock_pi_${request.idempotencyKey.slice(0, 8)}_${Date.now().toString(36)}`
 
-  if (request.simulate === 'slow_success') {
+  if (request.simulate === 'slow_success' || request.simulate === 'slow_failure') {
     // Widens the window between "seat reserved" and "payment settled" so the
-    // last-seat race is reproducible by hand, not just under load.
+    // last-seat race is reproducible by hand, not just under load - and so the
+    // tests can fire the seat-hold reaper while a charge is genuinely in flight.
     await new Promise((resolve) => setTimeout(resolve, SLOW_PAYMENT_DELAY_MS))
   }
 
-  if (request.simulate === 'failure') {
+  if (request.simulate === 'failure' || request.simulate === 'slow_failure') {
     return { status: 'failed', providerRef, failureReason: 'card_declined' }
   }
 
