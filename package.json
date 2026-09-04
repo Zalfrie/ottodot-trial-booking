@@ -1,0 +1,38 @@
+{
+  "name": "ottodot-trial-booking",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trial class booking slice for Ottodot - correct seat accounting under concurrency",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "db:reset": "tsx scripts/db-reset.ts",
+    "db:reset:test": "tsx scripts/db-reset.ts --test",
+    "db:check": "tsx scripts/check-invariants.ts",
+    "jobs:expire-holds": "tsx scripts/expire-stale-holds.ts",
+    "demo:race": "tsx scripts/demo-last-seat-race.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "next": "15.5.25",
+    "pg": "8.13.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/pg": "8.11.10",
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.0",
+    "dotenv": "16.4.7",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

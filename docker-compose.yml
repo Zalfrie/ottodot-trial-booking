@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ottodot-trial-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ottodot
+      POSTGRES_PASSWORD: ottodot_dev
+      POSTGRES_DB: ottodot_trial
+    ports:
+      # 5433 on the host so this never collides with a Postgres you already run locally.
+      - '5433:5432'
+    volumes:
+      - ottodot_pgdata:/var/lib/postgresql/data
+      - ./db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ottodot -d ottodot_trial']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  ottodot_pgdata:
