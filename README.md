@@ -352,7 +352,7 @@ truth.** Every invariant that matters is stated at least twice, and at least onc
 
 ## Time spent
 
-**~5 hours**, which is an hour over the 4-hour cap. Being straight about where it went:
+**~3.5 hours to a complete submission**, inside the 4-hour cap.
 
 | | |
 |---|---|
@@ -360,18 +360,28 @@ truth.** Every invariant that matters is stated at least twice, and at least onc
 | ~1h15m | Domain logic and the last-seat handling |
 | ~1h | Tests and the demo script |
 | ~45m | UI and this README |
-| ~30m | Clearing the dependency advisories, and wiring up CI |
+
+That version is commit [`0f6e651`](https://github.com/Zalfrie/ottodot-trial-booking/commit/0f6e651):
+the brief's scenario worked, the roster held at four, and 43 tests passed. **If you would rather
+assess only what fits the timebox, assess that commit** — everything the brief asks for is in it.
+
+### Beyond the timebox
+
+I then spent roughly another 1.5 hours, knowing I was past the cap:
+
+| | |
+|---|---|
+| ~30m | Clearing the dependency advisories (9 → 0), and wiring up CI |
 | ~1h | Hunting the reaper-vs-charge race, fixing it, writing it up |
 
-The first four rows are the 3.5-hour submission, and it was complete on its own terms: the brief's
-scenario worked and every test passed. It also contained the bug in the last row, which no test I
-had written at that point would have caught.
+Neither added a feature. The second is the one I would defend hardest: I went looking for what
+could touch a booking *between* the two payment transactions, and found a real bug on both paths —
+including a seat-counter drift that committed silently. Having found it, I was not willing to hand
+over code I knew was wrong, and the cap did not change that.
 
-I spent the extra hour because I went looking for what could touch a booking *between* the two
-payment transactions, and the answer turned out to be a real bug on both paths. I judged that
-shipping a known silent-counter-drift was worse than going over the cap. If you would rather see
-the 3.5-hour version, it is commit `0f6e651` — but I would not have wanted to hand that one over
-once I knew.
+I have kept the two apart rather than reporting one blended number, because "what I can build in
+four hours" and "what I do after I find a bug" are different questions, and you are probably asking
+the first one.
 
 ## What I deliberately cut
 

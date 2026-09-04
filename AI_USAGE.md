@@ -38,7 +38,8 @@ down by *which* advisories were reachable from a direct dependency, then took th
 pass — Next 16.3.4, Vitest 3.2.7, tsx, pg, `@types/node`. `npm audit` now reports **0
 vulnerabilities**, and `npm run typecheck`, `npm run build`, `npm test` and `npm run demo:race` all
 pass on the upgraded stack. That is maybe fifteen minutes of work I would probably have skipped on
-my own — and, honestly, part of why I ran over the four-hour cap (see *Time spent* in the README).
+my own — and it is part of what I did after the timebox rather than inside it (see *Time spent* in
+the README).
 
 ## Where I disagreed with it
 
