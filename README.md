@@ -231,8 +231,9 @@ CONSTRAINT trial_classes_seats_within_capacity
 ```
 
 If my reasoning above is ever wrong, or a future endpoint increments the counter without that
-`WHERE` clause, the transaction **aborts** rather than overbooking a class. Two tests write to the
-table directly, bypassing all application code, and assert the database refuses.
+`WHERE` clause, the transaction **aborts** rather than overbooking a class. Four tests write to the
+tables directly, bypassing all application code, and assert the database refuses: overbooking, a
+negative seat count, a duplicate active booking, and a seat hold that disagrees with its status.
 
 ### Why `pending_payment` does not hold a seat
 
@@ -362,8 +363,9 @@ truth.** Every invariant that matters is stated at least twice, and at least onc
 | ~30m | Clearing the dependency advisories, and wiring up CI |
 | ~1h | Hunting the reaper-vs-charge race, fixing it, writing it up |
 
-The first four rows are the 3.5-hour submission, and it was complete: the brief's scenario worked,
-the invariants held, the tests passed.
+The first four rows are the 3.5-hour submission, and it was complete on its own terms: the brief's
+scenario worked and every test passed. It also contained the bug in the last row, which no test I
+had written at that point would have caught.
 
 I spent the extra hour because I went looking for what could touch a booking *between* the two
 payment transactions, and the answer turned out to be a real bug on both paths. I judged that
@@ -425,7 +427,7 @@ Ordered by how badly I would want to be paged:
 db/schema.sql                     tables, constraints, the availability view
 db/seed.sql                       synthetic data covering the four required cases
 src/lib/booking/seats.ts          the atomic seat acquire/release — the crux
-src/lib/booking/pay-booking.ts    reserve-then-charge, in three transactions
+src/lib/booking/pay-booking.ts    reserve-then-charge, in two transactions
 src/lib/booking/create-booking.ts pending booking + duplicate handling
 src/lib/booking/expire-holds.ts   the background reaper
 src/lib/booking/invariants.ts     the properties, shared by tests and db:check

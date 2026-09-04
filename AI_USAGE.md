@@ -101,9 +101,10 @@ Not by reading the diff and nodding. In order of how much I trust them:
    constraint, but surfaced as a 500 with the card already charged). Fixed by guarding TX2 on the
    booking still being `processing_payment`. Writing the test first is what made it a finding
    rather than a plausible-sounding paragraph in this file.
-4. **Two tests bypass the application** and write to the tables directly, asserting the `CHECK`
-   constraint and the unique index reject overbooking and duplicates. If those pass, the
-   invariants hold no matter what any future code path does.
+4. **Four tests bypass the application** and write to the tables directly, asserting that the
+   `CHECK` constraints and the unique index reject overbooking, a negative seat count, a duplicate
+   active booking, and a seat hold that disagrees with its status. If those pass, the invariants
+   hold no matter what any future code path does.
 5. **By hand in two browser tabs**, following the steps in the README, to confirm the loser sees a
    sensible message and an empty payment-attempts table.
 6. `npm run typecheck` and `npm run build` clean.
