@@ -351,8 +351,25 @@ truth.** Every invariant that matters is stated at least twice, and at least onc
 
 ## Time spent
 
-~3.5 hours: ~30m reading and designing the schema, ~1h15m domain logic and the race handling,
-~1h tests and the demo script, ~45m UI and this README.
+**~5 hours**, which is an hour over the 4-hour cap. Being straight about where it went:
+
+| | |
+|---|---|
+| ~30m | Reading the brief, designing the schema and its constraints |
+| ~1h15m | Domain logic and the last-seat handling |
+| ~1h | Tests and the demo script |
+| ~45m | UI and this README |
+| ~30m | Clearing the dependency advisories, and wiring up CI |
+| ~1h | Hunting the reaper-vs-charge race, fixing it, writing it up |
+
+The first four rows are the 3.5-hour submission, and it was complete: the brief's scenario worked,
+the invariants held, the tests passed.
+
+I spent the extra hour because I went looking for what could touch a booking *between* the two
+payment transactions, and the answer turned out to be a real bug on both paths. I judged that
+shipping a known silent-counter-drift was worse than going over the cap. If you would rather see
+the 3.5-hour version, it is commit `0f6e651` — but I would not have wanted to hand that one over
+once I knew.
 
 ## What I deliberately cut
 

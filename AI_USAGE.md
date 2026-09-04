@@ -30,15 +30,15 @@ few made the rest almost free.
 
 That is roughly an hour saved, and it went straight back into coverage: the `slow_success`
 mid-flight assertions, the double-click test, and the reaper's multi-class case all exist because
-writing them was cheap. A thinner suite would have been the honest 4-hour outcome without it.
+writing them was cheap. A noticeably thinner suite would have been the honest outcome without it.
 
 **Second place: dependency hygiene.** It scaffolded `next@15.5.4`, which npm immediately flagged as
 carrying a published CVE. Rather than take the one-line bump and move on, I had it break the audit
 down by *which* advisories were reachable from a direct dependency, then took the whole set in one
 pass — Next 16.3.4, Vitest 3.2.7, tsx, pg, `@types/node`. `npm audit` now reports **0
 vulnerabilities**, and `npm run typecheck`, `npm run build`, `npm test` and `npm run demo:race` all
-pass on the upgraded stack. That is maybe fifteen minutes of work I would probably have skipped
-under a 4-hour clock on my own.
+pass on the upgraded stack. That is maybe fifteen minutes of work I would probably have skipped on
+my own — and, honestly, part of why I ran over the four-hour cap (see *Time spent* in the README).
 
 ## Where I disagreed with it
 
