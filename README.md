@@ -8,7 +8,8 @@ confirmed for the same last seat?**
 They cannot. Not under a scripted sequence, not under simultaneous requests, and not if someone
 bypasses the application and writes to the table directly.
 
-**Video walkthrough:** <!-- PASTE THE LINK HERE BEFORE SUBMITTING --> _(link to follow)_
+**[Video walkthrough (Loom)](https://www.loom.com/share/5f9e7fe8e3ec41d786786088565ea2d1)** — the
+approach, how the last-seat race is handled, and the tradeoffs behind it.
 
 ---
 
